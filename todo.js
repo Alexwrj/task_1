@@ -14,15 +14,15 @@ function TodoList() {
 
     return {
         complete_task: function (task_id) {
-            task = tasks.get(parseInt(task_id));
+            task = tasks.get(parseInt(task_id, 10));
             task.completed = true;
         },
         uncomplete_task : function(task_id) {
-            task = tasks.get(parseInt(task_id));
+            task = tasks.get(parseInt(task_id, 10));
             task.completed = false;
         },
         edit_task: function(task_id, description) {
-            task = tasks.get(parseInt(task_id));
+            task = tasks.get(parseInt(task_id, 10));
             task.description = description;
         },
         get_task: function (task_id) {
@@ -32,42 +32,56 @@ function TodoList() {
             return addTask(task);
         },
         remove_task: function (task_id) {
-            return tasks.delete(parseInt(task_id));
+            return tasks.delete(parseInt(task_id, 10));
         },
         all_tasks: function () {
             return tasks.values();
         },
-        print_all: function () {
-            for (var v of tasks) {
-                console.log(v);
-            }
-        }
     }
 }
+
 var todoList = new TodoList();
 
-function add() {
+function add(event) {
+    // prevent form submit
+    event.preventDefault();
     var description = document.getElementById('task').value;
 
-    todoList.add_task({'description': description, 'completed': false});
-    showTaskList();
+    if (description) {
+        todoList.add_task({'description': description, 'completed': false});
+        showTaskList();
+    }
+    
     return true;
 }
 
-function changeLabel() {
-    var id = this.getAttribute('id'),
-        description = $('label[id="' + id + '"]').val();
+function getLabelById(id) {
+    return $('label[id="' + id + '"]');
+}
 
-    $('label[id="' + id + '"]').hide();
-    $('.edit-input[id="' + id + '"]').show().focus();
+function getEditInputById(id) {
+    return $('.edit-input[id="' + id + '"]');
+}
+
+function getAllInputs() {
+    return $("input[type=checkbox]");
+}
+
+function changeLabel() {
+    var id = this.getAttribute('id');
+
+    getLabelById(id).hide();
+    getEditInputById(id).show().focus();
     return false;
 }
 
 function labelChanged() {
     var id = this.getAttribute('id'),
-        description = $('.edit-input[id=' + id + ']').val();
+        prevDescription = getLabelById(id).html();
+        description = getEditInputById(id).val();
 
-    todoList.edit_task(id, description);
+    // use prev text if the new one is not defined
+    todoList.edit_task(id, description || prevDescription);
     showTaskList();
     return false;
 }
@@ -138,7 +152,8 @@ function calculateCounter() {
         $inputs = $("input[type=checkbox]"),
         $inputsCh = $inputs.filter(':checked'),
         tempArray = [$inputsCh.length, $inputs.length],
-        informationText = tempArray[0]-tempArray[1];
+        // fix counter value
+        informationText = tempArray[1]-tempArray[0];
     $counter.html(informationText);
 }
 
@@ -152,35 +167,32 @@ function filterByAll() {
     $('#activeFilter').removeClass("active");
     return inputs.parents().show();
 }
-document.querySelector("#allFilter").addEventListener('click', filterByAll, false);
 
 function filterByActive() {
     activeFilter = "active";
     var $inputs = $("div input[type=checkbox]"),
         $inputsCh = $inputs.filter(":checked"),
         $inputsNotCh = $inputs.filter(":not(:checked)"),
-        $parentInputs = $inputsCh.parent();
+        // change the whole row to hide
+        $parentInputs = $inputsCh.parent().parent();
     $('#activeFilter').addClass("active");
     $('#allFilter').removeClass("active");
     $('#completedFilter').removeClass("active");
     return ($parentInputs.hide(), $inputsNotCh.parents().show());
-    showTaskList();
 }
-document.querySelector("#activeFilter").addEventListener('click', filterByActive, false);
 
 function filterByCompleted() {
     activeFilter = "completed";
     var $inputs = $("div input[type=checkbox]"),
         $inputsCh = $inputs.filter(":checked"),
         $inputsNotCh = $inputs.filter(":not(:checked)"),
-        $parentInputs = $inputsNotCh.parent();
+        // change the whole row to hide
+        $parentInputs = $inputsNotCh.parent().parent();
     $('#completedFilter').addClass("active");
     $('#allFilter').removeClass("active");
     $('#activeFilter').removeClass("active");
     return ($parentInputs.hide(), $inputsCh.parents().show());
-    showTaskList();
 }
-document.querySelector("#completedFilter").addEventListener('click', filterByCompleted, false);
 
 var filterTasksBy = function(filter) {
     if(activeFilter == "all") {
@@ -198,39 +210,48 @@ function showTaskList() {
     calculateCounter();
 }
 
-document.getElementById('add').addEventListener('click', add);
-showTaskList();
-
-function selectAll() {
-    var inputs = $("input[type=checkbox]");
+function changeInputsState(state) {
+    var inputs = getAllInputs();
 
     for (var i = 0; i < inputs.length; i++ ) {
-        inputs[i].checked=true;
-        todoList.complete_task(inputs[i].id);
+        inputs[i].checked=state;
+        if (state) {
+            todoList.complete_task(inputs[i].id);
+        } else {
+            todoList.uncomplete_task(inputs[i].id);
+        }
+        
         showTaskList();
     }
 }
-document.querySelector("#selectAll").addEventListener('click', selectAll, false);
+
+function selectAll() {
+    changeInputsState(true);
+}
 
 function deselectAll() {
-    var inputs = $("input[type=checkbox]");
-
-    for (var i = 0; i < inputs.length; i++ ) {
-        inputs[i].checked=false;
-        todoList.uncomplete_task(inputs[i].id);
-    }
-    showTaskList();
+    changeInputsState(false);
 }
-document.querySelector("#deselectAll").addEventListener('click', deselectAll, false);
 
 function completedRemove() {
-    var inputs = $("input[type=checkbox]");
+    var inputs = getAllInputs();
 
     for (var i = 0; i < inputs.length; i++ ) {
         if (inputs[i].checked == true) {
             todoList.remove_task(inputs[i].id)
         }
-    showTaskList();
     }
+    // optimize render
+    showTaskList();
 }
+
+// handlers
+document.querySelector("#allFilter").addEventListener('click', filterByAll, false);
+document.querySelector("#activeFilter").addEventListener('click', filterByActive, false);
+document.querySelector("#completedFilter").addEventListener('click', filterByCompleted, false);
+document.getElementById('add').addEventListener('click', add);
+document.querySelector("#selectAll").addEventListener('click', selectAll, false);
+document.querySelector("#deselectAll").addEventListener('click', deselectAll, false);
 document.querySelector("#completedRemove").addEventListener('click', completedRemove, false);
+
+showTaskList();
